@@ -1,4 +1,4 @@
-extends Node
+class_name EventBus extends Node
 ## Serves as an event bus managing signal connexions between scripts
 ##
 ## EventBus is a collection of signals called emitters that keep reference to callable called
@@ -63,7 +63,9 @@ func add_emitter(sig:Signal) -> void :
 	if emitter :
 		push_warning("The signal ", emitter.get_name(), " on ", emitter.get_object().to_string() ," was previously added, signal should only be registered to the event bus once")
 		return
-	registered_emitters.append(Emitter.new(sig))
+	var new_emitter = Emitter.new(sig)
+	if is_instance_valid(new_emitter) :
+		registered_emitters.append(new_emitter)
 
 ## Remove an emitter from [member registered_emitters] and disconnect every listeners still
 ## connected to it
@@ -94,12 +96,12 @@ func add_listener_to(listener:Callable, filter:Callable = Callable()) -> void :
 
 ## Disconnect [param listener] to every registered emitter
 func remove_listener(listener:Callable) -> void :
-	for emitter in registered_emitters :
+	for emitter:Emitter in registered_emitters :
 		emitter.remove_listener(listener)
 
 ## Return every emitter connected to [the [param listener]
 func get_connected_emitters_to(listener:Callable) -> Array[Emitter] :
-	return registered_emitters.filter(func(emitter:Emitter):return emitter.is_connected_to(listener))
+	return registered_emitters.filter(func(emitter:Emitter)->bool:return emitter.is_connected_to(listener))
 
 func _add_listener_to_deferred(listener:Callable, filter:Callable = Callable()) -> void :
 	var filtered_emitters:Array[Emitter]
@@ -107,7 +109,7 @@ func _add_listener_to_deferred(listener:Callable, filter:Callable = Callable()) 
 		filtered_emitters = registered_emitters.filter(filter)
 	else :
 		filtered_emitters = registered_emitters
-	for emitter in filtered_emitters :
+	for emitter:Emitter in filtered_emitters :
 		emitter.add_listener(listener)
 
 func _get_emitter_by_signal(sig:Signal) -> Emitter :
@@ -115,6 +117,10 @@ func _get_emitter_by_signal(sig:Signal) -> Emitter :
 		if emitter.sig == sig :
 			return emitter
 	return
+
+func free():
+	print("Custom free")
+	super.free()
 
 ## Data representation of an emitter with its connexions to listeners
 ##
@@ -128,11 +134,23 @@ class Emitter extends Object :
 	var listeners:Array[Callable] = []
 	
 	func _init(sig_ref:Signal) -> void :
+		if not sig_ref :
+			push_error("Attempted to create object Emitter with null signal")
+			free()
+			return
+		if not sig_ref.get_object() :
+			push_error("Attempted to create object Emitter with oprhan signal")
+			free()
+			return
 		sig = sig_ref
+	
+	func _notification(what: int) -> void :
+		if what == NOTIFICATION_PREDELETE :
+			remove_all_listeners()
 	
 	## Add a listener to this emitter
 	func add_listener(callable:Callable) -> void :
-		if not listeners.has(callable) :
+		if callable and not listeners.has(callable) :
 			sig.connect(callable)
 			listeners.append(callable)
 	
@@ -143,7 +161,7 @@ class Emitter extends Object :
 			listeners.erase(callable)
 	
 	## Disconnect all listeners from this emitter
-	func remove_all_listener() -> void :
+	func remove_all_listeners() -> void :
 		for listener:Callable in listeners :
 			sig.disconnect(listener)
 		listeners = []
@@ -151,12 +169,6 @@ class Emitter extends Object :
 	## Return true if [param listener] is connected to this emitter
 	func is_connected_to(listener:Callable) -> bool :
 		return listeners.has(listener)
-	
-	## Overriding the [method Object.free] method to remove all listenners before freeing
-	func free() -> void :
-		print("custom free")
-		remove_all_listener()
-		super.free()
 	
 	func _to_string() -> String :
 		return str(sig) + " -> " + str(listeners)
