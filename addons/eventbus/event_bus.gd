@@ -69,15 +69,17 @@ func remove_emitter(emitter:Emitter) -> void:
 	registered_emitters.erase(emitter)
 	emitter.free()
 
-## Remove an emitter based on its signal from [member registered_emitters] and disconnect every listeners still
-## connected to it. 
+## Remove an emitter based on its signal from [member registered_emitters] and disconnect every 
+## listeners still connected to it.[br][br]
+## This is usefull to remove an emitter from an object without needing a reference to the emitter
 func remove_emitter_from_signal(sig:Signal) -> void:
 	var emitter:Emitter = _get_emitter_by_signal(sig)
 	if emitter :
 		registered_emitters.erase(emitter)
 		emitter.free()
 
-## Remove every emitter an object has declared.[br][br]
+## Remove every emitter from [member registered_emitters] whose signal is attached to [param object]
+## and disconnect every listeners still connected to it.[br][br]
 ## This is usefull to remove every declared emitter when freeing an object from memory
 func remove_emitter_from_object(object:Object) -> void :
 	for emitter:Emitter in registered_emitters:
