@@ -48,16 +48,12 @@ class_name EventBus extends Node
 ## [b]Note:[/b] Binding arguments are not currently supported
 
 
-## Dictionary referencing every listeners connexions to an emitter, the key is the emitter, the 
-## value is an array of every callable connected. [br][br]
-## When adding an emitter to the event bus a key in this dictionary is created with an empty array
-## as a value. When a listenner is added, it will be connected to every emitter in this dictionnary
-## matching filtering parameters
-## Dictionary type should be key:Signal, value:Array[Callable]
+## Array containing [class Emitter], every added emitter are store in this array.
 var registered_emitters:Array[Emitter]
 
 ## Register the signal [param sig] as an emitter in the event bus [br][br]
-## [b]Note:[/b] if the signal is already declared in [member registered_emitters] pushes a warning and return
+## [b]Note:[/b] if the signal is already declared in [member registered_emitters] pushes a warning 
+## and return.
 func add_emitter(sig:Signal) -> void :
 	var emitter:Emitter = _get_emitter_by_signal(sig)
 	if emitter :
@@ -68,12 +64,38 @@ func add_emitter(sig:Signal) -> void :
 		registered_emitters.append(new_emitter)
 
 ## Remove an emitter from [member registered_emitters] and disconnect every listeners still
-## connected to it
-func remove_emitter(sig:Signal) -> void :
+## connected to it.
+func remove_emitter(emitter:Emitter) -> void:
+	registered_emitters.erase(emitter)
+	emitter.free()
+
+## Remove an emitter based on its signal from [member registered_emitters] and disconnect every listeners still
+## connected to it. 
+func remove_emitter_from_signal(sig:Signal) -> void:
 	var emitter:Emitter = _get_emitter_by_signal(sig)
 	if emitter :
 		registered_emitters.erase(emitter)
 		emitter.free()
+
+## Remove every emitter an object has declared.[br][br]
+## This is usefull to remove every declared emitter when freeing an object from memory
+func remove_emitter_from_object(object:Object) -> void :
+	for emitter:Emitter in registered_emitters:
+		if emitter.sig.get_object() == object :
+			remove_emitter(emitter)
+
+## Remove all emitter from [member registered_emitters]
+func remove_all_emitters() -> void:
+	for emitter:Emitter in registered_emitters:
+		emitter.free()
+	registered_emitters = []
+
+## Clean [member registered_emitters] from emitter without a correct object (when the object was
+## freed but its declared emitter wasn't removed) 
+func clean_emitters() -> void :
+	for emitter:Emitter in registered_emitters:
+		if not is_instance_valid(emitter.sig.get_object()):
+			remove_emitter(emitter)
 
 ## Register a callable as a listener to every emitter in the event bus, emitters can be filtered 
 ## with [param filter] similar to [method Array.filter] [br][br]
@@ -81,13 +103,13 @@ func remove_emitter(sig:Signal) -> void :
 ## [b]Exemple: [/b]
 ## [codeblock]
 ## # The listener will connect to every registered pressed signal from Button nodes
-## func _ready() :
+## func _ready():
 ##     event_bus.add_listener_to(_on_any_button_pressed, _pressed_button_filter)
 ## 
-## func _on_any_button_pressed() :
+## func _on_any_button_pressed():
 ##     print("A button was pressed")
 ##
-## func _pressed_button_filter(emitter) :
+## func _pressed_button_filter(emitter: Emitter) -> bool:
 ##     return emitter.sig.get_name() == "pressed" and emitter.sig.get_object().get_class() == "Button"
 ## 
 ## [/codeblock]
@@ -99,11 +121,11 @@ func remove_listener(listener:Callable) -> void :
 	for emitter:Emitter in registered_emitters :
 		emitter.remove_listener(listener)
 
-## Return every emitter connected to [the [param listener]
+## Return every emitter connected to [param listener]
 func get_connected_emitters_to(listener:Callable) -> Array[Emitter] :
 	return registered_emitters.filter(func(emitter:Emitter)->bool:return emitter.is_connected_to(listener))
 
-func _add_listener_to_deferred(listener:Callable, filter:Callable = Callable()) -> void :
+func _add_listener_to_deferred(listener:Callable, filter:Callable = Callable()) -> void :	
 	var filtered_emitters:Array[Emitter]
 	if filter :
 		filtered_emitters = registered_emitters.filter(filter)
@@ -117,58 +139,3 @@ func _get_emitter_by_signal(sig:Signal) -> Emitter :
 		if emitter.sig == sig :
 			return emitter
 	return
-
-func free():
-	print("Custom free")
-	super.free()
-
-## Data representation of an emitter with its connexions to listeners
-##
-## Emitter stores the signal in [member sig] and every listeners connexions in [member listeners].
-## When freeing the object, it disconnect [member sig] of every callable in [member listeners] 
-class Emitter extends Object :
-
-	## The signal stored as an emitter
-	var sig:Signal
-	## Array of every callable connected to the signal via the Emitter and EventBus classes
-	var listeners:Array[Callable] = []
-	
-	func _init(sig_ref:Signal) -> void :
-		if not sig_ref :
-			push_error("Attempted to create object Emitter with null signal")
-			free()
-			return
-		if not sig_ref.get_object() :
-			push_error("Attempted to create object Emitter with oprhan signal")
-			free()
-			return
-		sig = sig_ref
-	
-	func _notification(what: int) -> void :
-		if what == NOTIFICATION_PREDELETE :
-			remove_all_listeners()
-	
-	## Add a listener to this emitter
-	func add_listener(callable:Callable) -> void :
-		if callable and not listeners.has(callable) :
-			sig.connect(callable)
-			listeners.append(callable)
-	
-	## Disconnect [param listener] from this emitter
-	func remove_listener(callable:Callable) -> void :
-		if listeners.has(callable) :
-			sig.disconnect(callable)
-			listeners.erase(callable)
-	
-	## Disconnect all listeners from this emitter
-	func remove_all_listeners() -> void :
-		for listener:Callable in listeners :
-			sig.disconnect(listener)
-		listeners = []
-	
-	## Return true if [param listener] is connected to this emitter
-	func is_connected_to(listener:Callable) -> bool :
-		return listeners.has(listener)
-	
-	func _to_string() -> String :
-		return str(sig) + " -> " + str(listeners)
