@@ -28,9 +28,9 @@ Let's create a Label and create a listenner to every pressed signal registered
 class_name CustomLabel extends Label
 
 func _ready() -> void:
-	GlobalSignal.add_listener(_on_every_custom_button_pressed, _filter_all_signal_pressed)
+	GlobalSignal.add_listener(_on_any_custom_button_pressed, _filter_all_signal_pressed)
 
-func _on_every_custom_button_pressed() -> void:
+func _on_any_custom_button_pressed() -> void:
 	print("A custom button was pressed")
 
 func _filter_all_signal_pressed(emitter: Emitter) -> bool:
